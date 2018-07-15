@@ -6,6 +6,11 @@ import javax.script.ScriptEngine;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 /**
  * Copyright 2018 Arraying
@@ -22,12 +27,14 @@ import java.util.Map;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@SuppressWarnings("unused")
+@SuppressWarnings({"unused", "WeakerAccess"})
 public final class Prime {
 
     private final String code;
     private final LinkedList<PrimeSourceProvider> providers;
     private final ScriptEngine engine;
+    private final int maxRuntimeSeconds;
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
     /**
      * Creates a new Prime instance.
@@ -35,22 +42,39 @@ public final class Prime {
      * @param filter The filter.
      * @param variables The variables.
      * @param providers The providers.
+     * @param maxRuntimeSeconds The maximum runtime in seconds.
      */
-    private Prime(String code, PrimeClassFilter filter, Map<String, Object> variables, LinkedList<PrimeSourceProvider> providers) {
+    private Prime(String code, PrimeClassFilter filter, Map<String, Object> variables, LinkedList<PrimeSourceProvider> providers, int maxRuntimeSeconds) {
         this.code = code;
         this.providers = providers;
+        this.maxRuntimeSeconds = maxRuntimeSeconds;
         engine = new NashornScriptEngineFactory().getScriptEngine(filter);
         variables.forEach(engine::put);
     }
 
     /**
-     * Evaluates the code.
-     * @throws Exception If there is an error.
+     * Evaluates the code with no error consumer.
      */
-    public void evaluate() throws Exception {
+    public void evaluate() {
+        evaluate(null);
+    }
+
+    /**
+     * Evaluates the code.
+     * @param error The consumer for when there is an error.
+     */
+    @SuppressWarnings("deprecation")
+    public void evaluate(Consumer<Exception> error) {
         String codeRaw = new PrimeParser(this.code, providers).parse();
         String code = "(function(){" + codeRaw + "})();";
-        engine.eval(code);
+        PrimeRuntime runtime = new PrimeRuntime(engine, code, error);
+        Thread thread = new Thread(runtime);
+        thread.start();
+        executor.schedule(() -> {
+            if(!runtime.isCompleted()) {
+                thread.stop();
+            }
+        }, maxRuntimeSeconds, TimeUnit.SECONDS);
     }
 
     /**
@@ -61,6 +85,7 @@ public final class Prime {
         private final PrimeClassFilter filter = new PrimeClassFilter();
         private final Map<String, Object> variables = new HashMap<>();
         private final LinkedList<PrimeSourceProvider> providers = new LinkedList<>();
+        private int maxRuntimeSeconds = 3;
 
         /**
          * Exposes a class to the script.
@@ -95,12 +120,22 @@ public final class Prime {
         }
 
         /**
+         * Sets the maximum runtime duration.
+         * @param timeInSeconds The time, in seconds.
+         * @return The builder, for chaining.
+         */
+        public Builder withMaxRuntime(int timeInSeconds) {
+            this.maxRuntimeSeconds = timeInSeconds;
+            return this;
+        }
+
+        /**
          * Builds the builder to make a Prime object.
          * @param code The code.
          * @return The object.
          */
         public Prime build(String code) {
-            return new Prime(code, filter, variables, providers);
+            return new Prime(code, filter, variables, providers, maxRuntimeSeconds);
         }
 
     }

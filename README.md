@@ -5,7 +5,6 @@ Prime -- Nashorn Engine on steroids
 Prime allows custom imports within Nashorn, completely customizable. Prime also features a class filter.
 
 ## What it needs
-* Execution time limit
 * Execution CPU limit
 * Execution memory limit
 * Optimization
