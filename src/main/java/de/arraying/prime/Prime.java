@@ -6,11 +6,11 @@ import javax.script.ScriptEngine;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
 
 /**
  * Copyright 2018 Arraying
@@ -65,7 +65,7 @@ public final class Prime {
      */
     @SuppressWarnings("deprecation")
     public void evaluate(Consumer<Exception> error) {
-        String codeRaw = new PrimeParser(this.code, providers).parse();
+        String codeRaw = new PrimeParser(this, this.code, providers).parse();
         String code = "(function(){" + codeRaw + "})();";
         PrimeRuntime runtime = new PrimeRuntime(engine, code, error);
         Thread thread = new Thread(runtime);
@@ -136,6 +136,83 @@ public final class Prime {
          */
         public Prime build(String code) {
             return new Prime(code, filter, variables, providers, maxRuntimeSeconds);
+        }
+
+    }
+
+    /**
+     * A source provider pattern matcher wrapper.
+     */
+    public static final class Match {
+
+        private final PrimeSourceProvider provider;
+        private final String match;
+
+        /**
+         * Creates a new match.
+         * @param provider The matching provider.
+         * @param match The match group.
+         */
+        public Match(PrimeSourceProvider provider, String match) {
+            this.provider = provider;
+            this.match = match;
+        }
+
+        /**
+         * Gets the provider.
+         * @return The provider.
+         */
+        public PrimeSourceProvider getProvider() {
+            return provider;
+        }
+
+        /**
+         * Gets the match.
+         * @return The match.
+         */
+        public String getMatch() {
+            return match;
+        }
+
+    }
+
+    /**
+     * The util class.
+     */
+    public static final class Util {
+
+        /**
+         * Gets a match for the provided input string.
+         * @param prime The prime instance.
+         * @param input The input string.
+         * @return A match.
+         */
+        public static Match getMatches(Prime prime, String input) {
+            for(PrimeSourceProvider provider : prime.providers) {
+                Matcher matcher = provider.getIncludePattern().matcher(input);
+                if(!matcher.find()) {
+                    continue;
+                }
+                return new Match(provider, matcher.group());
+            }
+            return null;
+        }
+
+        /**
+         * Gets the provider for the given input string.
+         * @param prime The prime instance.
+         * @param identifier The input string.
+         * @return A prime provider, or null if none were found.
+         */
+        public static PrimeSourceProvider getProvider(Prime prime, String identifier) {
+            for(PrimeSourceProvider provider : prime.providers) {
+                Matcher matcher = provider.getIncludePattern().matcher(identifier);
+                if(!matcher.find()) {
+                    continue;
+                }
+                return provider;
+            }
+            return null;
         }
 
     }

@@ -27,26 +27,30 @@ final class PrimeParser {
      */
     private static final String IDENTIFIER = "#include ";
 
+    private final Prime prime;
     private final String initialCode;
     private final LinkedList<PrimeSourceProvider> providers;
     private final Set<String> sources;
 
     /**
      * Creates a new Prime parser.
+     * @param prime The prime instance.
      * @param initialCode The initial code.
      * @param providers  The providers.
      */
-    PrimeParser(String initialCode, LinkedList<PrimeSourceProvider> providers) {
-        this(initialCode, providers, new HashSet<>());
+    PrimeParser(Prime prime, String initialCode, LinkedList<PrimeSourceProvider> providers) {
+        this(prime, initialCode, providers, new HashSet<>());
     }
 
     /**
      * Creates a new Prime parser.
+     * @param prime The prime instance.
      * @param initialCode The initial code.
      * @param providers The providers.
      * @param sources A set of already imported paths.
      */
-    private PrimeParser(String initialCode, LinkedList<PrimeSourceProvider> providers, Set<String> sources) {
+    private PrimeParser(Prime prime, String initialCode, LinkedList<PrimeSourceProvider> providers, Set<String> sources) {
+        this.prime = prime;
         this.initialCode = initialCode;
         this.providers = providers;
         this.sources = sources;
@@ -62,24 +66,39 @@ final class PrimeParser {
         for(String part : parts) {
             if(part.startsWith(IDENTIFIER)) {
                 part = part.substring(IDENTIFIER.length());
-                for(PrimeSourceProvider provider : providers) {
-                    Matcher matcher = provider.getIncludePattern().matcher(part);
-                    if(!matcher.find()) {
-                        continue;
-                    }
-                    String path = matcher.group();
-                    if(sources.contains(path)) {
-                        continue;
-                    }
-                    String code = provider.getSource(path);
-                    sources.add(part);
-                    PrimeParser parser = new PrimeParser(code, providers, sources);
-                    code = parser.parse();
-                    sources.addAll(parser.sources);
-                    resultBuilder.append(code);
-                    sources.add(part);
-                    break;
+                Prime.Match match = Prime.Util.getMatches(prime, part);
+                if(match == null) {
+                    continue;
                 }
+                String result = match.getMatch();
+                if(sources.contains(result)) {
+                    continue;
+                }
+                String code = match.getProvider().getSource(result);
+                sources.add(part);
+                PrimeParser parser = new PrimeParser(prime, code, providers, sources);
+                code = parser.parse();
+                sources.addAll(parser.sources);
+                resultBuilder.append(code);
+                sources.add(part);
+//                for(PrimeSourceProvider provider : providers) {
+//                    Matcher matcher = provider.getIncludePattern().matcher(part);
+//                    if(!matcher.find()) {
+//                        continue;
+//                    }
+//                    String path = matcher.group();
+//                    if(sources.contains(path)) {
+//                        continue;
+//                    }
+//                    String code = provider.getSource(path);
+//                    sources.add(part);
+//                    PrimeParser parser = new PrimeParser(code, providers, sources);
+//                    code = parser.parse();
+//                    sources.addAll(parser.sources);
+//                    resultBuilder.append(code);
+//                    sources.add(part);
+//                    break;
+//                }
             } else {
                 resultBuilder.append(part);
             }
