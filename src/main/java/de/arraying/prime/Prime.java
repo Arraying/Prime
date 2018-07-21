@@ -72,6 +72,9 @@ public final class Prime {
         thread.start();
         executor.schedule(() -> {
             if(!runtime.isCompleted()) {
+                if(error != null) {
+                    error.accept(new PrimeLimitException());
+                }
                 thread.stop();
             }
         }, maxRuntimeSeconds, TimeUnit.SECONDS);
