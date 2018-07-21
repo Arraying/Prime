@@ -22,7 +22,7 @@ public class PrimeLimitException extends Exception {
      * Creates the prime exception.
      */
     PrimeLimitException() {
-        super("Hit execution time limit");
+        super("Hit execution time limit.");
     }
 
 }

@@ -55,6 +55,7 @@ public class PrimeRuntime implements Runnable {
             engine.eval(code);
             atomicBoolean.set(true);
         } catch(Exception exception) {
+            atomicBoolean.set(true);
             if(error != null) {
                 error.accept(exception);
             }
