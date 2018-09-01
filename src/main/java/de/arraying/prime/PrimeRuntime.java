@@ -1,6 +1,9 @@
 package de.arraying.prime;
 
+import javax.script.Bindings;
+import javax.script.ScriptContext;
 import javax.script.ScriptEngine;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -24,17 +27,20 @@ public class PrimeRuntime implements Runnable {
     private final AtomicBoolean atomicBoolean = new AtomicBoolean(false);
     private final ScriptEngine engine;
     private final String code;
+    private final Set<String> blacklistedBindings;
     private final Consumer<Exception> error;
 
     /**
      * Creates a new Prime runtime.
      * @param engine The script engine.
      * @param code The code.
+     * @param blacklistedBindings The bindings to blacklist.
      * @param error The error consumer.
      */
-    PrimeRuntime(ScriptEngine engine, String code, Consumer<Exception> error) {
+    PrimeRuntime(ScriptEngine engine, String code, Set<String> blacklistedBindings, Consumer<Exception> error) {
         this.engine = engine;
         this.code = code;
+        this.blacklistedBindings = blacklistedBindings;
         this.error = error;
     }
 
@@ -52,6 +58,10 @@ public class PrimeRuntime implements Runnable {
     @Override
     public void run() {
         try {
+            Bindings bindings = engine.getBindings(ScriptContext.ENGINE_SCOPE);
+            for(String blacklisted : blacklistedBindings) {
+                bindings.remove(blacklisted);
+            }
             engine.eval(code);
             atomicBoolean.set(true);
         } catch(Exception exception) {

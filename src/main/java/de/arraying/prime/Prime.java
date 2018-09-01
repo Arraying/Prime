@@ -3,9 +3,7 @@ package de.arraying.prime;
 import jdk.nashorn.api.scripting.NashornScriptEngineFactory;
 
 import javax.script.ScriptEngine;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -30,8 +28,20 @@ import java.util.regex.Matcher;
 @SuppressWarnings({"unused", "WeakerAccess"})
 public final class Prime {
 
+    /**
+     * The default bindings that should be removed.
+     */
+    public static final String[] DEFAULT_BINDINGS = new String[] {
+            "print",
+            "load",
+            "loadWithNewGlobal",
+            "exit",
+            "quit",
+    };
+
     private final String code;
     private final LinkedList<PrimeSourceProvider> providers;
+    private final Set<String> blacklistedBindings;
     private final ScriptEngine engine;
     private final int maxRuntimeSeconds;
     private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
@@ -42,11 +52,13 @@ public final class Prime {
      * @param filter The filter.
      * @param variables The variables.
      * @param providers The providers.
+     * @param blacklistedBindings A set of bindings that are to be removed.
      * @param maxRuntimeSeconds The maximum runtime in seconds.
      */
-    private Prime(String code, PrimeClassFilter filter, Map<String, Object> variables, LinkedList<PrimeSourceProvider> providers, int maxRuntimeSeconds) {
+    private Prime(String code, PrimeClassFilter filter, Map<String, Object> variables, LinkedList<PrimeSourceProvider> providers, Set<String> blacklistedBindings, int maxRuntimeSeconds) {
         this.code = code;
         this.providers = providers;
+        this.blacklistedBindings = blacklistedBindings;
         this.maxRuntimeSeconds = maxRuntimeSeconds;
         engine = new NashornScriptEngineFactory().getScriptEngine(filter);
         variables.forEach(engine::put);
@@ -67,7 +79,7 @@ public final class Prime {
     public void evaluate(Consumer<Exception> error) {
         String codeRaw = new PrimeParser(this, this.code, providers).parse();
         String code = "(function(){" + codeRaw + "})();";
-        PrimeRuntime runtime = new PrimeRuntime(engine, code, error);
+        PrimeRuntime runtime = new PrimeRuntime(engine, code, blacklistedBindings, error);
         Thread thread = new Thread(runtime);
         thread.start();
         executor.schedule(() -> {
@@ -88,6 +100,7 @@ public final class Prime {
         private final PrimeClassFilter filter = new PrimeClassFilter();
         private final Map<String, Object> variables = new HashMap<>();
         private final LinkedList<PrimeSourceProvider> providers = new LinkedList<>();
+        private final Set<String> blacklistedBindings = new HashSet<>();
         private int maxRuntimeSeconds = 3;
 
         /**
@@ -123,6 +136,16 @@ public final class Prime {
         }
 
         /**
+         * Blacklists some bindings that are not to be used.
+         * @param bindings An array of bindings, case sensitive.
+         * @return The builder, for chaining.
+         */
+        public Builder withBlacklistedBindings(String... bindings) {
+            Collections.addAll(blacklistedBindings, bindings);
+            return this;
+        }
+
+        /**
          * Sets the maximum runtime duration.
          * @param timeInSeconds The time, in seconds.
          * @return The builder, for chaining.
@@ -138,7 +161,7 @@ public final class Prime {
          * @return The object.
          */
         public Prime build(String code) {
-            return new Prime(code, filter, variables, providers, maxRuntimeSeconds);
+            return new Prime(code, filter, variables, providers, blacklistedBindings, maxRuntimeSeconds);
         }
 
     }
